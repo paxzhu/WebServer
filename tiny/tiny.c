@@ -3,6 +3,7 @@
  *     GET method to serve static and dynamic content.
  */
 #include "csapp.h"
+#include <time.h>
 
 void doit(int fd);
 void read_requesthdrs(rio_t *rp);
@@ -12,6 +13,9 @@ void get_filetype(char *filename, char *filetype);
 void serve_dynamic(int fd, char *filename, char *cgiargs);
 void clienterror(int fd, char *cause, char *errnum, 
 		 char *shortmsg, char *longmsg);
+
+char* get_current_time();
+
 
 int main(int argc, char **argv) 
 {
@@ -134,27 +138,38 @@ int parse_uri(char *uri, char *filename, char *cgiargs)
  * serve_static - copy a file back to the client 
  */
 /* $begin serve_static */
-void serve_static(int fd, char *filename, int filesize) 
-{
+char* get_current_time() {
+    time_t current_time;
+    time(&current_time);
+
+    // 使用 ctime 函数将时间戳转换为可读的字符串
+    char* time_str = ctime(&current_time);
+    // 使用循环遍历字符串的每个字符
+    time_str[strlen(time_str)-1] = '\0';
+    printf("====================%s=====================\r\n", time_str);
+    return time_str;
+}
+
+void serve_static(int fd, char *filename, int filesize) {
     int srcfd;
     char *srcp, filetype[MAXLINE], buf[MAXBUF];
- 
-    /* Send response headers to client */
-    get_filetype(filename, filetype);       //line:netp:servestatic:getfiletype
-    sprintf(buf, "HTTP/1.0 200 OK\r\n");    //line:netp:servestatic:beginserve
+    //response headers
+    get_filetype(filename, filetype);
+    sprintf(buf, "Http/1.0 200 OK\r\n");
+    sprintf(buf, "%sMIME-Version: 1.0\r\n", buf);
+    sprintf(buf, "%sDate: %s\r\n", buf, get_current_time());
     sprintf(buf, "%sServer: Tiny Web Server\r\n", buf);
     sprintf(buf, "%sContent-length: %d\r\n", buf, filesize);
     sprintf(buf, "%sContent-type: %s\r\n\r\n", buf, filetype);
-    Rio_writen(fd, buf, strlen(buf));       //line:netp:servestatic:endserve
+    Rio_writen(fd, buf, strlen(buf));
 
-    /* Send response body to client */
+    //response body
     srcfd = Open(filename, O_RDONLY, 0);    //line:netp:servestatic:open
     srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);//line:netp:servestatic:mmap
     Close(srcfd);                           //line:netp:servestatic:close
     Rio_writen(fd, srcp, filesize);         //line:netp:servestatic:write
-    Munmap(srcp, filesize);                 //line:netp:servestatic:munmap
+    Munmap(srcp, filesize);                 
 }
-
 /*
  * get_filetype - derive file type from file name
  */
